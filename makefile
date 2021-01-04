@@ -1,4 +1,3 @@
 
-
 all:
-	g++ -o compressHuffman main.cpp
+	g++ -o compressHuffman main.cpp HuffmanCompression.cpp
