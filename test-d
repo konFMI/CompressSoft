@@ -4,4 +4,4 @@ clear
 
 make
 
-./compressHuffman -d -i input-d -o output-d
+./compressHuffman -d -i output -o output-d
