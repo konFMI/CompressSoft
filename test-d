@@ -1,0 +1,7 @@
+#!/bin/bash
+
+clear
+
+make
+
+./compressHuffman -d -i input-d -o output-d
