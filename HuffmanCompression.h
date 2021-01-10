@@ -4,8 +4,12 @@
 #include <string>
 #include <inttypes.h>
 #include <map>
+#include <unistd.h>
 
-#define UINT32 uint32_t
+#define SIZE 8
+#define BITMAPENTRYBITS 8
+#define UINTBITMAP uint8_t
+#define UINTHISTVALUE uint8_t
 
 struct HuffmanNode {
 	char character;
@@ -42,20 +46,22 @@ class HuffmanCompression {
 
         ~HuffmanCompression();
 
-        int Run(
+        void Run(
             int argc,
             char *argv[]);
 
     private:
-        int ProcessInput(
+        void ProcessInput(
 	        int argc,
 	        char *argv[]);
 
-        int GenerateHistogram();
+        void OpenWorkFiles();
 
-        void PrintHistogram() const;
+        void GenerateHistogram();
 
         void WriteHistogram();
+
+        void ReadCharactersFromInputFile();
 
         void ReadHistogramFromInputFile();
 
@@ -82,16 +88,22 @@ class HuffmanCompression {
 	        std::string code);
 
         void EncodeStream();
-        void WriteBuffer(uint32_t[], int& );
+	    void DecodeStream();
+        void WriteBuffer(UINTBITMAP[], UINTBITMAP& );
 
 
         std::string                   pathToInputFile;
         std::string                   pathToOutputFile;
+
         std::ifstream                 inStream;
         std::ofstream                 outStream;
+
+        int                           inputFd;
+        int                           outputFd;
+
         char                          option; /*Is it encoding or decoding.*/
-        std::map<char, UINT32> histogram;
-        std::map<char, std::string> huffmanCodeMap;
+        std::map<char, UINTHISTVALUE> histogram;
+        std::map<char, std::string>   huffmanCodeMap;
 
         struct HuffmanNode *root;
 };
