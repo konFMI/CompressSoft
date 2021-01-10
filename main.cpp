@@ -4,14 +4,12 @@
 
 #include <queue>
 
-#define DEV 1
-#define DEBUG 0
 #define HISTSIZE 256
+#define BITS 8
 
 struct HuffmanNode {
 	char character;
 	int  value;
-	int level;
 	const HuffmanNode *leftNode;
 	const HuffmanNode *rightNode;
 
@@ -61,34 +59,6 @@ void CloseWorkFiles();
 
 void GenerateHistogram();
 
-void WriteHistogram();
-
-void PrintDebugHistogram()
-{
-	printf("Listing histogram\n");
-	for (uint16_t i = 0; i < HISTSIZE; i++)
-	{
-		if(histogram[(uint8_t)i])
-		{
-			printf("\t%c\t=\t%d\n", (uint8_t)i, histogram[(uint8_t)i]);		
-		}
-	}
-	printf("End listing\n");
-	
-}
-
-void PrintDebugCodeMap()
-{
-	printf("Listing code map\n");
-	for (uint16_t i = 0; i < HISTSIZE; i++)
-	{
-		if(histogram[i])
-		{	
-			printf("\t%c\t=\t%s\n", (char)i, huffmanCodeMap[i].c_str());
-		}
-	}
-	printf("End listing\n");
-}
 void BuildHuffmanTree();
 
 std::string GenerateHuffmanCodeMap(
@@ -98,10 +68,6 @@ std::string GenerateHuffmanCodeMap(
 void EncodeStream();
 
 void DecodeStream();
-
-std::string HuffmanCompressionGenerateHuffmanCodeMap(
-	const HuffmanNode *root,
-	std::string code);
 
 int main(
 	int argc,
@@ -113,7 +79,6 @@ int main(
 	GenerateHistogram();
 	BuildHuffmanTree();
 	GenerateHuffmanCodeMap(root, "");
-	PrintDebugCodeMap();
 
 	// By this point everything is set. We can compess or decompress now.
 	if (option == 'c')
@@ -136,15 +101,13 @@ static void ErrorInvalidInputFormat()
 	exit(1);
 }
 
-static void ErrorInvalidOption(
-)
+static void ErrorInvalidOption()
 {
 	std::cerr << "error: Invalid option. Only -c or -d.";
 	exit(1);
 }
 
-static void ErrorOpenFile(
-	std::string pathToInputFile)
+static void ErrorOpenFile(std::string pathToInputFile)
 {
 	std::cerr << "error: failed to open file '" << pathToInputFile << "'\n";
 	exit(1);
@@ -219,107 +182,106 @@ void OpenWorkFiles()
 	}
 }
 
+void DeleteTree(
+	const HuffmanNode* r)
+{
+    if (r)
+    {
+        DeleteTree(r->leftNode);
+        DeleteTree(r->rightNode);
+        delete r;
+    }   
+}
+
 void CloseWorkFiles()
 {
 	inputStream.close();
 	outputStream.close();
+	DeleteTree(root);
 }
 
 void ReadCharactersFromInputFile()
 {
-	std::streampos size;
+	std::streampos size_input_file_bytes;
 	char buffer[HISTSIZE];
+
 	if (inputStream.is_open())
 	{
-    size = inputStream.tellg();
-    char *memblock = new char [size];
-    inputStream.seekg (0, std::ios::beg);
-    inputStream.read (memblock, size);
+	    size_input_file_bytes = inputStream.tellg();
+	    char *memblock = new char [size_input_file_bytes];
+	
+	    inputStream.seekg (0, std::ios::beg);
+	    inputStream.read (memblock, size_input_file_bytes);
 
-	for (size_t i = 0; i < size; i++)
-	{
-		histogram[memblock[i]]++;
-	}
-	for (size_t i = 0; i < HISTSIZE; i++)
-	{
-		if(histogram[i])
+		/* Creating hstogram form memblocks. */
+		for (size_t i = 0; i < size_input_file_bytes; i++)
 		{
-			hist_size++;
+			histogram[memblock[i]]++;
 		}
-	}
-    delete[] memblock;
+
+		/* Counting histogram elements. */
+		for (size_t i = 0; i < HISTSIZE; i++)
+		{
+			if(histogram[i])
+			{
+				hist_size++;
+			}
+		}
+
+    	delete[] memblock;
   }
-#if DEBUG
-	PrintDebugHistogram();
-#endif
 }
 
-//TODO: Fine tune a little bit. Or yes.
 void ReadHistogramFromInputFile()
 {
-#if DEBUG
-	printf("Reading histogram from input file\n");
-#endif
 	if (inputStream.is_open())
 	{
-	    char buffer[1] = {' '};
+	    char buffer[1];
+
 		inputStream.seekg(0, std::ios_base::beg);
+
+		/* Reading the error bits tag. */
 		inputStream.read(buffer, 1);
 		error_bits = buffer[0];
+
+		/* Reading the histogram size tag. */
 		inputStream.read(buffer, 1);
 		hist_size = buffer[0];
 	}
+
 	if (inputStream.is_open() && hist_size > 0)
 	{
-		char buffer[2*hist_size] = { 0 };
-		inputStream.read(buffer, 2*hist_size);
+		char buffer[2 * hist_size] = { 0 };
+
+		inputStream.read(buffer, 2 * hist_size);
+
 		for (size_t i = 0; i < 2 * hist_size; i+=2)
 		{
 			histogram[buffer[i]] = buffer[i+1]; 
 		}
-#if DEBUG
-	PrintDebugHistogram();
-#endif
 	}
-#if DEBUG
-	printf("End reading\n");
-#endif
 }
 
 void GenerateHistogram()
 {
-	//TODO: Depending on the option value, the histogram will be generated
-	//		by a text for encoding or a from an encoded file.
-	//		In one way it is straightforward. The other needs more attention.
-	//DONE!
 	switch (option)
 	{
-	case 'c':
-		ReadCharactersFromInputFile();
-		break;
-	case 'd':
-		ReadHistogramFromInputFile();
-		break;
-	default:
-		ErrorInvalidOption();
+		case 'c':
+			ReadCharactersFromInputFile();
+			break;
+		case 'd':
+			ReadHistogramFromInputFile();
+			break;
+		default:
+			ErrorInvalidOption();
 	}
 }
 
-//TODO: Tune a little bit more. Or not.
 void WriteHistogram()
 {
-#if DEBUG
-	std::cout << "Write histogram\n";
-#endif
-
 	char buffer[2 * hist_size] = { 0 };
 	buffer[0] = hist_size;
-#if DEBUG
-	printf("\thist_size = %d\n", (int)hist_size);
-	printf("\tbuffer[0] = %d\n", buffer[0]);
-#endif
 
-	//outputStream.seekp(0, std::ios_base::beg);
 	outputStream.write(buffer, 1);
 	for (uint16_t i = 0, j = 0; i < HISTSIZE && j < 2 * hist_size; i++)
 	{
@@ -333,21 +295,13 @@ void WriteHistogram()
 	}
 
 	outputStream.write(buffer, 2 * hist_size);
-#if DEBUG
-	printf("Listing buffer histogram\n");
-	for (size_t i = 0; i < 2 * hist_size; i+=2)
-	{
-		printf("\t%c = %d\n", (char)buffer[i], (int)buffer[i+1]);
-	}
-	
-	std::cout << "End writing\n";
-#endif
 }
 
 void BuildHuffmanTree()
 {
 	std::priority_queue<HuffmanNode> nodes;
 	HuffmanNode *firstMaxNode, *secondMaxNode;
+
 	for (uint16_t i = 0; i < HISTSIZE; i++)
 	{
 		if (histogram[i])
@@ -368,7 +322,6 @@ void BuildHuffmanTree()
 	}
 	
 	root = new HuffmanNode(nodes.top());
-	
 	nodes.pop();
 }
 
@@ -409,9 +362,8 @@ static int UpdateBitInBuffer(
 		return 1;
 	}
 
-
 	int minorIndex = index % bits;
-	int mainIndex = index / bits;
+	int mainIndex  = index / bits;
 
 	if (!!bitValue)
 	{
@@ -428,7 +380,7 @@ static int UpdateBitInBuffer(
 
 static int BufferFull(
 	int bits,
-	int& index)
+	int index)
 {
 	if (index >= (bits * HISTSIZE))
 	{
@@ -437,7 +389,6 @@ static int BufferFull(
 	return 0;
 }
 
-//TODO: Error  bit not handled.
 void EncodeStream() 
 {
 	std::string line;
@@ -445,20 +396,23 @@ void EncodeStream()
 	int index = 0;
 
 	inputStream.seekg(0, std::ios_base::beg);
+	outputStream.seekp(0, std::ios_base::beg);
+
 	outputStream.write(buffer, 1);
+
 	WriteHistogram();
 
 	while (inputStream.good())
 	{
 		std::getline(inputStream, line);
+		line += '\n';
 
 		for (char ch : line)
 		{
 			for (char bit : huffmanCodeMap[ch])
 			{
-				std::cout << bit;
-				UpdateBitInBuffer(buffer, 8, index, bit - '0');
-				if (BufferFull(8, index))
+				UpdateBitInBuffer(buffer, BITS, index, bit - '0');
+				if (BufferFull(BITS, index))
 				{
 					outputStream.write(buffer, HISTSIZE);
 					index = 0;
@@ -469,14 +423,19 @@ void EncodeStream()
 
 	if (index)
 	{
-		int minorIndex = index % 8;
-		int mainIndex = index / 8;
-		printf("\nminorIndex = %d\nmainIndex = %d\nindex = %d\n", minorIndex, mainIndex, index);
-		outputStream.write(buffer, mainIndex);
+		int minorIndex = index % BITS;
+		int mainIndex = index / BITS;
+		if(mainIndex)
+		{
+			outputStream.write(buffer, mainIndex);
+		}
+
 		if (minorIndex)
 		{
 			outputStream.write(buffer, 1);
+			
 			outputStream.seekp(0, std::ios_base::beg);
+
 			buffer[0] = minorIndex;
 			outputStream.write(buffer, 1);
 		}
@@ -485,29 +444,34 @@ void EncodeStream()
 
 void DecodeStream()
 {
-	std::streampos size, pos;
+	const struct HuffmanNode *ptr = root;
+	std::streampos size_input_file_bytes, pos;
+	char buffer[HISTSIZE] = { 0 };
+	int size_to_read = 0;
+	int index = 0;
+	uint8_t mask = 0;
+
 	if (inputStream.good())
 	{
 		inputStream.seekg(0, std::ios_base::end);
-		size = inputStream.tellg();
+
+		size_input_file_bytes = inputStream.tellg();
 		pos = 2 * hist_size + 2;
-		inputStream.seekg(pos);
+		size_to_read = size_input_file_bytes - pos;
 
-		char buffer[HISTSIZE] = { 0 };
-
-		inputStream.read(buffer, size - pos);
-		const struct HuffmanNode *ptr = root;
-		int index = 0;
-		for(int i = 0; i < size - pos; i++)
+		inputStream.seekg(pos, std::ios_base::beg);
+		inputStream.read(buffer, size_to_read);
+		
+		for(int i = 0; i < size_to_read; i++)
 		{
-			uint8_t mask = 1 << 8 - 1;
+			mask = 1 << BITS - 1;
 			while (mask)
 			{
 				if((buffer[i] & mask) != 0)
 				{
 					if (ptr->rightNode == NULL)
 					{
-						std::cout << ptr->character;
+						outputStream << ptr->character;
 						ptr = root->rightNode;
 					}
 					else
@@ -519,7 +483,7 @@ void DecodeStream()
 				{
 					if (ptr->leftNode == NULL && ptr->rightNode == NULL)
 					{
-						std::cout << ptr->character;
+						outputStream << ptr->character;
 						ptr = root->leftNode;
 					}
 					else
@@ -527,6 +491,7 @@ void DecodeStream()
 						ptr = ptr->leftNode;
 					}
 				}
+				/* Used for working out the error bits. */
 				index++;
 				mask >>= 1;
 			}

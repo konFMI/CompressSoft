@@ -1,6 +1,0 @@
-#!/bin/bash
-
-clear
-
-cp output input-d
-cp input output-d
