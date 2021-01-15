@@ -47,7 +47,7 @@ static uint8_t	hist_size;
 static uint8_t 	error_bits;
 static std::string huffmanCodeMap[HISTSIZE];
 
-struct HuffmanNode *root = NULL;
+static struct HuffmanNode *root = NULL;
 
 void ProcessInput(
 	int argc,
@@ -203,17 +203,21 @@ void CloseWorkFiles()
 void ReadCharactersFromInputFile()
 {
 	std::streampos size_input_file_bytes;
-	char buffer[HISTSIZE];
 
 	if (inputStream.is_open())
 	{
 	    size_input_file_bytes = inputStream.tellg();
 	    char *memblock = new char [size_input_file_bytes];
-	
+		if (!memblock)
+		{
+			std::cerr << "error: memory error" << std::endl;
+			CloseWorkFiles();
+			exit(1);
+		}
 	    inputStream.seekg (0, std::ios::beg);
 	    inputStream.read (memblock, size_input_file_bytes);
 
-		/* Creating hstogram form memblocks. */
+		/* Creating hstogram form memblock. */
 		for (size_t i = 0; i < size_input_file_bytes; i++)
 		{
 			histogram[memblock[i]]++;
@@ -257,7 +261,7 @@ void ReadHistogramFromInputFile()
 
 		for (size_t i = 0; i < 2 * hist_size; i+=2)
 		{
-			histogram[buffer[i]] = buffer[i+1]; 
+			histogram[buffer[i]] = buffer[i+1];
 		}
 	}
 }
@@ -293,7 +297,6 @@ void WriteHistogram()
 			j++;		
 		}
 	}
-
 	outputStream.write(buffer, 2 * hist_size);
 }
 
@@ -444,9 +447,9 @@ void EncodeStream()
 
 void DecodeStream()
 {
+	
 	const struct HuffmanNode *ptr = root;
 	std::streampos size_input_file_bytes, pos;
-	char buffer[HISTSIZE] = { 0 };
 	int size_to_read = 0;
 	int index = 0;
 	uint8_t mask = 0;
@@ -458,14 +461,20 @@ void DecodeStream()
 		size_input_file_bytes = inputStream.tellg();
 		pos = 2 * hist_size + 2;
 		size_to_read = size_input_file_bytes - pos;
-
+		char *buffer = new char[size_to_read];
+		if (!buffer)
+		{
+			std::cerr << "error: memory error" << std::endl;
+			CloseWorkFiles();
+			exit(1);
+		}
 		inputStream.seekg(pos, std::ios_base::beg);
 		inputStream.read(buffer, size_to_read);
-		
+
 		for(int i = 0; i < size_to_read; i++)
 		{
 			mask = 1 << BITS - 1;
-			while (mask)
+			while (mask && index <= (8 * size_to_read - error_bits))
 			{
 				if((buffer[i] & mask) != 0)
 				{
@@ -492,9 +501,10 @@ void DecodeStream()
 					}
 				}
 				/* Used for working out the error bits. */
-				index++;
 				mask >>= 1;
+				index++;
 			}
 		}	
+		delete [] buffer;
 	}
 }
